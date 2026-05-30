@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
-
+import uuid
+from datetime import datetime
 
 class PostCreate(BaseModel):
     title : str = Field(...,example="This is Title 1")
@@ -11,7 +12,14 @@ class PostCreate(BaseModel):
     
 
 class PostResponse(BaseModel):
-    title : str
+    id: uuid.UUID
+    title: str
     content: str
+    url: str
+    file_type: str
+    file_name: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 
