@@ -1,4 +1,4 @@
-from fastapi import APIRouter,Depends, HTTPException, status
+from fastapi import APIRouter,Depends, HTTPException, status, File, UploadFile, Form
 
 from typing import Annotated
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,6 +7,10 @@ from database import get_db
 from schema import PostCreate, PostResponse
 import models
 import uuid
+from utils.images import imagekit
+import os
+import shutil
+import tempfile
 
 
 router = APIRouter()
@@ -33,24 +37,59 @@ async def get_post(post_id: str,
 
 
 @router.post("", response_model=PostResponse,summary="creating a post")
-async def create_post(post: PostCreate,
-                      db:Annotated[AsyncSession, Depends(get_db)]):
+async def create_post(
+                    db: Annotated[AsyncSession, Depends(get_db)],
+                    file: UploadFile = File(...),
+                    title: str = Form(...),
+                    content: str = Form(...),
+                      ):
     
 
-    new_post = models.Post(
-        title = post.title,
-        content=post.content,
-        url = post.url,
-        file_type = post.file_type,
-        file_name = post.file_name
+    temp_file_path = None
 
-    )
+    try :
 
-    db.add(new_post)
-    await db.commit()
-    await db.refresh(new_post)
 
-    return new_post
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix=os.path.splitext(file.filename)[1]) as temp_file:
+
+            temp_file_path = temp_file.name
+            shutil.copyfileobj(file.file, temp_file)
+        
+        with open(temp_file_path,"rb") as f:
+            file_data = f.read()
+
+        upload_result = imagekit.files.upload(
+            file = file_data,
+            file_name=file.filename,
+            use_unique_file_name= True,
+            tags= ["backend-uploaded-v1"]
+
+        )
+
+        new_post = models.Post(
+            title = title,
+            content= content,
+            url = upload_result.url,
+            file_type =  "video" if file.content_type.startswith("video/") else "image",
+            file_name = upload_result.name
+
+        )
+
+        db.add(new_post)
+        await db.commit()
+        await db.refresh(new_post)
+
+        return new_post
+    except Exception as e :
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    finally :
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+        await file.close()
 
 
 @router.delete("/{post_id}")
@@ -63,6 +102,10 @@ async def delete_post(post_id: str,
 
         post = result.scalars().first()
 
+        if not post:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                                detail="This Post does not exists")
+
         await db.delete(post)
         await db.commit()
 
@@ -70,6 +113,6 @@ async def delete_post(post_id: str,
     
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
