@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 from sqlalchemy.orm import mapped_column,Mapped, relationship
 from sqlalchemy import  String, UUID, DateTime, ForeignKey
 from datetime import datetime, UTC
 import uuid
 from database import Base
 
-from __future__ import annotations
+
 
 
 class User(Base):
