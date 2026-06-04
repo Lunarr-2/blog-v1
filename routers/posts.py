@@ -11,6 +11,7 @@ from utils.images import imagekit
 import os
 import shutil
 import tempfile
+from utils.auth import CURRENT_USER
 
 
 router = APIRouter()
@@ -39,6 +40,7 @@ async def get_post(post_id: str,
 @router.post("", response_model=PostResponse,summary="creating a post")
 async def create_post(
                     db: Annotated[AsyncSession, Depends(get_db)],
+                    current_user : CURRENT_USER,
                     file: UploadFile = File(...),
                     title: str = Form(...),
                     content: str = Form(...),
@@ -72,7 +74,9 @@ async def create_post(
             content= content,
             url = upload_result.url,
             file_type =  "video" if file.content_type.startswith("video/") else "image",
-            file_name = upload_result.name
+            file_name = upload_result.name,
+            user_id = current_user.id
+            # uuid.UUID("30604a35-860e-43be-8fc0-f5f399448665")
 
         )
 
